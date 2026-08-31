@@ -10,13 +10,16 @@ Phase 2 replaces the direct "fetch -> write to Postgres" path with
 this file's fetching logic much at all.
 """
 
+import json
 import logging
+import os
 import time
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 
 import feedparser
 import httpx
+from confluent_kafka import Producer
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -36,6 +39,9 @@ SEED_SOURCES = [
 MAX_RETRIES = 3
 RETRY_BACKOFF_SECONDS = 2
 REQUEST_TIMEOUT = 10.0
+KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
+
+kafka_producer = Producer({"bootstrap.servers": KAFKA_BOOTSTRAP_SERVERS})
 
 
 def fetch_feed_bytes(url: str) -> bytes | None:
@@ -110,21 +116,22 @@ def ingest_source(db: Session, name: str, feed_url: str) -> dict:
             stats["skipped_invalid"] += 1
             continue
 
-        article = Article(
-            source_id=source.id,
-            title=entry.title.strip(),
-            content=getattr(entry, "summary", None),
-            url=entry.link.strip(),
-            published_at=_parse_published(entry),
+        url = entry.link.strip()
+        published_at = _parse_published(entry)
+        payload = {
+            "source": name,
+            "title": entry.title.strip(),
+            "url": url,
+            "published_at": published_at.isoformat() if published_at else None,
+            "content": getattr(entry, "summary", None),
+        }
+        kafka_producer.produce(
+            topic="news.raw",
+            key=url,
+            value=json.dumps(payload, default=str),
         )
-        db.add(article)
-        try:
-            db.commit()
-            stats["inserted"] += 1
-        except IntegrityError:
-            # url is UNIQUE — this is our duplicate-detection for Phase 1
-            db.rollback()
-            stats["skipped_duplicate"] += 1
+        kafka_producer.flush()
+        stats["inserted"] += 1
 
     return stats
 
