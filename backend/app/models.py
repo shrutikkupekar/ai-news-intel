@@ -49,13 +49,42 @@ class Article(Base):
     content = Column(Text, nullable=True)
     url = Column(String(2048), nullable=False, unique=True)
     published_at = Column(DateTime(timezone=True), nullable=True)
+    topic = Column(String(255), nullable=True)
     created_at = Column(DateTime(timezone=True), default=utcnow)
 
     # embedding column intentionally omitted until Phase 4 (pgvector arrives then)
 
     source = relationship("Source", back_populates="articles")
+    article_entities = relationship("ArticleEntity", back_populates="article")
 
     __table_args__ = (
         Index("ix_articles_published_at", "published_at"),
         Index("ix_articles_source_id", "source_id"),
+    )
+
+
+class Entity(Base):
+    __tablename__ = "entities"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(255), nullable=False, index=True)
+    type = Column(String(50), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+
+    article_entities = relationship("ArticleEntity", back_populates="entity")
+
+
+class ArticleEntity(Base):
+    __tablename__ = "article_entities"
+
+    id = Column(Integer, primary_key=True)
+    article_id = Column(Integer, ForeignKey("articles.id"), nullable=False)
+    entity_id = Column(Integer, ForeignKey("entities.id"), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+
+    article = relationship("Article", back_populates="article_entities")
+    entity = relationship("Entity", back_populates="article_entities")
+
+    __table_args__ = (
+        UniqueConstraint("article_id", "entity_id", name="uq_article_entity"),
     )
