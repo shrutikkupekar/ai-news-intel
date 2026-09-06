@@ -3,7 +3,7 @@ import logging
 import os
 from datetime import datetime
 
-from confluent_kafka import Consumer, KafkaError
+from confluent_kafka import Consumer, KafkaError, Producer
 from sqlalchemy.exc import IntegrityError
 
 from app.database import SessionLocal
@@ -13,6 +13,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("raw_consumer")
 
 KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
+kafka_producer = Producer({"bootstrap.servers": KAFKA_BOOTSTRAP_SERVERS})
 
 
 def get_or_create_source(db, name: str, url: str) -> Source:
@@ -85,6 +86,12 @@ def consume_messages():
                 db.add(article)
                 db.commit()
                 consumer.commit(message=msg, asynchronous=False)
+                kafka_producer.produce(
+                    topic="news.processed",
+                    key=article.url,
+                    value=json.dumps({"id": article.id, "url": article.url}),
+                )
+                kafka_producer.flush()
                 logger.info(
                     "Inserted article from source=%s title=%s url=%s",
                     source_name,
