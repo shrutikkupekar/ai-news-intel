@@ -1,9 +1,10 @@
 import json
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from confluent_kafka import Consumer, KafkaError, Producer
+from rapidfuzz import fuzz
 from sqlalchemy.exc import IntegrityError
 
 from app.database import SessionLocal
@@ -36,6 +37,42 @@ def parse_published_at(value):
         return datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError:
         return None
+
+
+def check_for_duplicate(db, title: str, published_at: datetime, time_window_hours: int = 6) -> tuple[int | None, float]:
+    """
+    Check if an article with the given title and published_at is a duplicate of an existing article.
+    
+    Returns:
+        A tuple of (duplicate_article_id, similarity_score) if a duplicate is found (score >= 55),
+        otherwise (None, 0.0)
+    """
+    if not published_at:
+        return None, 0.0
+    
+    # Query for articles published within the time window
+    time_window_start = published_at - timedelta(hours=time_window_hours)
+    time_window_end = published_at + timedelta(hours=time_window_hours)
+    
+    existing_articles = db.query(Article).filter(
+        Article.published_at.isnot(None),
+        Article.published_at >= time_window_start,
+        Article.published_at <= time_window_end,
+    ).all()
+    
+    best_match_id = None
+    best_score = 0.0
+    
+    for existing in existing_articles:
+        score = fuzz.token_sort_ratio(title, existing.title, score_cutoff=0)
+        if score >= 55 and score > best_score:
+            best_match_id = existing.id
+            best_score = score
+    
+    if best_match_id is not None:
+        return best_match_id, best_score
+    
+    return None, 0.0
 
 
 def consume_messages():
@@ -76,28 +113,45 @@ def consume_messages():
                     continue
 
                 source = get_or_create_source(db, source_name, url)
+                
+                # Check for duplicates before inserting
+                duplicate_of_id, similarity_score = check_for_duplicate(db, title, published_at)
+                
                 article = Article(
                     source_id=source.id,
                     title=title.strip(),
                     content=content,
                     url=url.strip(),
                     published_at=published_at,
+                    duplicate_of_id=duplicate_of_id,
                 )
                 db.add(article)
                 db.commit()
                 consumer.commit(message=msg, asynchronous=False)
-                kafka_producer.produce(
-                    topic="news.processed",
-                    key=article.url,
-                    value=json.dumps({"id": article.id, "url": article.url}),
-                )
-                kafka_producer.flush()
-                logger.info(
-                    "Inserted article from source=%s title=%s url=%s",
-                    source_name,
-                    title,
-                    url,
-                )
+                
+                # Only publish to news.processed if it's a new article, not a duplicate
+                if duplicate_of_id is None:
+                    kafka_producer.produce(
+                        topic="news.processed",
+                        key=article.url,
+                        value=json.dumps({"id": article.id, "url": article.url}),
+                    )
+                    kafka_producer.flush()
+                    logger.info(
+                        "Inserted new article from source=%s title=%s url=%s",
+                        source_name,
+                        title,
+                        url,
+                    )
+                else:
+                    logger.info(
+                        "Inserted duplicate of article %d, score=%.1f from source=%s title=%s url=%s",
+                        duplicate_of_id,
+                        similarity_score,
+                        source_name,
+                        title,
+                        url,
+                    )
             except IntegrityError:
                 db.rollback()
                 consumer.commit(message=msg, asynchronous=False)

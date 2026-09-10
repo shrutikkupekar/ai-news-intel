@@ -50,6 +50,7 @@ class Article(Base):
     url = Column(String(2048), nullable=False, unique=True)
     published_at = Column(DateTime(timezone=True), nullable=True)
     topic = Column(String(255), nullable=True)
+    duplicate_of_id = Column(Integer, ForeignKey("articles.id"), nullable=True)
     created_at = Column(DateTime(timezone=True), default=utcnow)
 
     # embedding column intentionally omitted until Phase 4 (pgvector arrives then)
