@@ -19,6 +19,7 @@ from email.utils import parsedate_to_datetime
 
 import feedparser
 import httpx
+from bs4 import BeautifulSoup
 from confluent_kafka import Producer
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -118,12 +119,13 @@ def ingest_source(db: Session, name: str, feed_url: str) -> dict:
 
         url = entry.link.strip()
         published_at = _parse_published(entry)
+        content = BeautifulSoup(getattr(entry, "summary", None) or "", "html.parser").get_text()
         payload = {
             "source": name,
             "title": entry.title.strip(),
             "url": url,
             "published_at": published_at.isoformat() if published_at else None,
-            "content": getattr(entry, "summary", None),
+            "content": content,
         }
         kafka_producer.produce(
             topic="news.raw",
