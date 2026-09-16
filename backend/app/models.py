@@ -11,6 +11,7 @@ from sqlalchemy import (
     Index,
 )
 from sqlalchemy.orm import relationship
+from pgvector.sqlalchemy import Vector
 
 from app.database import Base
 
@@ -53,7 +54,7 @@ class Article(Base):
     duplicate_of_id = Column(Integer, ForeignKey("articles.id"), nullable=True)
     created_at = Column(DateTime(timezone=True), default=utcnow)
 
-    # embedding column intentionally omitted until Phase 4 (pgvector arrives then)
+    embedding = Column(Vector(384), nullable=True)
 
     source = relationship("Source", back_populates="articles")
     article_entities = relationship("ArticleEntity", back_populates="article")
