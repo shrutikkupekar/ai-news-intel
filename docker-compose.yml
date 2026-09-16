@@ -75,6 +75,22 @@ services:
       - ./backend:/app
     command: python -m app.consumers.raw_consumer
 
+  processor:
+    build: ./backend
+    container_name: news_processor
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://news_user:news_pass@postgres:5432/news_intel
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    volumes:
+      - ./backend:/app
+    command: python -m app.consumers.entity_processor
+
   web:
     build: ./frontend
     container_name: news_web
