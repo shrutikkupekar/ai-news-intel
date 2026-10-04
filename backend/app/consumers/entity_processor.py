@@ -4,6 +4,7 @@ import os
 
 import spacy
 from confluent_kafka import Consumer, KafkaError
+from sentence_transformers import SentenceTransformer
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 
@@ -15,6 +16,7 @@ logger = logging.getLogger("entity_processor")
 
 KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
 nlp = spacy.load("en_core_web_sm")
+embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
 
 TOPIC_TAXONOMY = {
     "Artificial Intelligence": [
@@ -112,6 +114,7 @@ def process_article(article_id: int, db) -> int:
     # Classify topic
     topic = classify_article_topic(text)
     article.topic = topic
+    article.embedding = embedding_model.encode(text).tolist()
     
     # Extract entities
     entities_found = nlp(text).ents
