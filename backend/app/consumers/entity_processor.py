@@ -104,6 +104,36 @@ def classify_article_topic(text: str) -> str:
     return topics_with_max[0]
 
 
+HN_BOILERPLATE_PREFIXES = (
+    "Article URL:",
+    "Comments URL:",
+    "Points:",
+    "# Comments:",
+    "Related:",
+)
+MIN_EMBEDDING_CONTENT_LENGTH = 40
+MAX_EMBEDDING_TEXT_LENGTH = 1000
+
+
+def build_embedding_text(article) -> str:
+    """
+    Build the text used for an article's embedding.
+
+    Strips Hacker News boilerplate lines from the content. If little or no
+    content remains, the title alone is used.
+    """
+    content_lines = (article.content or "").splitlines()
+    cleaned_content = "\n".join(
+        line for line in content_lines
+        if not line.strip().startswith(HN_BOILERPLATE_PREFIXES)
+    ).strip()
+
+    if len(cleaned_content) < MIN_EMBEDDING_CONTENT_LENGTH:
+        return article.title
+
+    return f"{article.title}. {cleaned_content}"[:MAX_EMBEDDING_TEXT_LENGTH]
+
+
 def process_article(article_id: int, db) -> int:
     article = db.get(Article, article_id)
     if article is None:
@@ -114,7 +144,7 @@ def process_article(article_id: int, db) -> int:
     # Classify topic
     topic = classify_article_topic(text)
     article.topic = topic
-    article.embedding = embedding_model.encode(text).tolist()
+    article.embedding = embedding_model.encode(build_embedding_text(article)).tolist()
     
     # Extract entities
     entities_found = nlp(text).ents
