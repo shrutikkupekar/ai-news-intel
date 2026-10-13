@@ -16,6 +16,8 @@ logger = logging.getLogger("raw_consumer")
 KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
 kafka_producer = Producer({"bootstrap.servers": KAFKA_BOOTSTRAP_SERVERS})
 
+TITLE_DUPLICATE_THRESHOLD = 65
+
 
 def get_or_create_source(db, name: str, url: str) -> Source:
     source = db.query(Source).filter(Source.url == url).first()
@@ -44,7 +46,7 @@ def check_for_duplicate(db, title: str, published_at: datetime, time_window_hour
     Check if an article with the given title and published_at is a duplicate of an existing article.
     
     Returns:
-        A tuple of (duplicate_article_id, similarity_score) if a duplicate is found (score >= 55),
+        A tuple of (duplicate_article_id, similarity_score) if a duplicate is found (score >= TITLE_DUPLICATE_THRESHOLD),
         otherwise (None, 0.0)
     """
     if not published_at:
@@ -65,7 +67,7 @@ def check_for_duplicate(db, title: str, published_at: datetime, time_window_hour
     
     for existing in existing_articles:
         score = fuzz.token_sort_ratio(title, existing.title, score_cutoff=0)
-        if score >= 55 and score > best_score:
+        if score >= TITLE_DUPLICATE_THRESHOLD and score > best_score:
             best_match_id = existing.id
             best_score = score
     
