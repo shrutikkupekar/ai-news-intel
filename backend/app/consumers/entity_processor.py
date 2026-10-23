@@ -8,6 +8,7 @@ from sentence_transformers import SentenceTransformer
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 
+from app.clustering import assign_to_story
 from app.database import SessionLocal
 from app.models import Article, ArticleEntity, Entity
 
@@ -145,7 +146,26 @@ def process_article(article_id: int, db) -> int:
     topic = classify_article_topic(text)
     article.topic = topic
     article.embedding = embedding_model.encode(build_embedding_text(article)).tolist()
-    
+
+    # Clustering runs in its own savepoint so a failure here never blocks
+    # entity extraction or topic classification
+    try:
+        with db.begin_nested():
+            assignment = assign_to_story(db, article)
+        if assignment.status == "joined":
+            logger.info(
+                "Article id=%s joined story_id=%s (similarity=%.3f)",
+                article.id,
+                assignment.story_id,
+                assignment.similarity,
+            )
+        elif assignment.status == "created":
+            logger.info("Article id=%s created story_id=%s", article.id, assignment.story_id)
+        else:
+            logger.info("Article id=%s already in story_id=%s", article.id, assignment.story_id)
+    except Exception:
+        logger.exception("Story clustering failed for article_id=%s", article.id)
+
     # Extract entities
     entities_found = nlp(text).ents
 
