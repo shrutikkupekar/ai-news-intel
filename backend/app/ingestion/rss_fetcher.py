@@ -69,6 +69,17 @@ def fetch_feed_bytes(url: str) -> bytes | None:
 
 def _parse_published(entry) -> datetime | None:
     """feedparser gives inconsistent date formats across feeds — normalize to UTC."""
+    # feedparser already parses RFC 822 (RSS) and ISO 8601 (Atom) dates into
+    # UTC struct_times, which covers feeds like The Verge that the raw
+    # parsing below can't read
+    for field in ("published_parsed", "updated_parsed"):
+        parsed = getattr(entry, field, None)
+        if parsed:
+            try:
+                return datetime(*parsed[:6], tzinfo=timezone.utc)
+            except (TypeError, ValueError):
+                continue
+
     for field in ("published", "updated"):
         raw = getattr(entry, field, None)
         if raw:
@@ -122,6 +133,7 @@ def ingest_source(db: Session, name: str, feed_url: str) -> dict:
         content = BeautifulSoup(getattr(entry, "summary", None) or "", "html.parser").get_text()
         payload = {
             "source": name,
+            "source_url": feed_url,
             "title": entry.title.strip(),
             "url": url,
             "published_at": published_at.isoformat() if published_at else None,

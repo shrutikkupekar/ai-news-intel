@@ -19,11 +19,18 @@ kafka_producer = Producer({"bootstrap.servers": KAFKA_BOOTSTRAP_SERVERS})
 TITLE_DUPLICATE_THRESHOLD = 65
 
 
-def get_or_create_source(db, name: str, url: str) -> Source:
-    source = db.query(Source).filter(Source.url == url).first()
+def get_or_create_source(db, name: str, url: str | None) -> Source:
+    """
+    Look up a source by name, creating it if needed.
+
+    `url` is the feed URL. Older messages don't carry one, so a placeholder
+    keeps the unique sources.url column satisfied.
+    """
+    # Lowest id first, so this picks the same row merge_duplicate_sources keeps
+    source = db.query(Source).filter(Source.name == name).order_by(Source.id).first()
     if source:
         return source
-    source = Source(name=name, url=url)
+    source = Source(name=name, url=url or f"source://{name}")
     db.add(source)
     db.commit()
     db.refresh(source)
@@ -114,7 +121,7 @@ def consume_messages():
                     logger.warning("Skipping invalid payload for news.raw: %s", payload)
                     continue
 
-                source = get_or_create_source(db, source_name, url)
+                source = get_or_create_source(db, source_name, payload.get("source_url"))
                 
                 # Check for duplicates before inserting
                 duplicate_of_id, similarity_score = check_for_duplicate(db, title, published_at)
