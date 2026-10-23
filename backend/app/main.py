@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.ingestion.rss_fetcher import ingest_all
-from app.api import articles
+from app.api import articles, stories
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("main")
@@ -48,6 +48,7 @@ app.add_middleware(
 )
 
 app.include_router(articles.router)
+app.include_router(stories.router)
 
 
 @app.get("/health")
