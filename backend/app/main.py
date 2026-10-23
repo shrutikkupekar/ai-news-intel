@@ -6,7 +6,7 @@ from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
-from app.database import Base, engine, get_db
+from app.database import get_db
 from app.ingestion.rss_fetcher import ingest_all
 from app.api import articles
 
@@ -29,10 +29,6 @@ def scheduled_ingest():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Phase 1: create_all is fine. Once the schema stabilizes (Phase 2+),
-    # switch to Alembic migrations so schema changes are tracked and reversible.
-    Base.metadata.create_all(bind=engine)
-
     scheduler.add_job(scheduled_ingest, "interval", minutes=10, id="rss_ingest")
     scheduler.start()
     logger.info("scheduler started: ingesting every 10 minutes")
