@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from sqlalchemy import (
     Column,
     Integer,
+    Float,
     String,
     Text,
     DateTime,
@@ -89,4 +90,46 @@ class ArticleEntity(Base):
 
     __table_args__ = (
         UniqueConstraint("article_id", "entity_id", name="uq_article_entity"),
+    )
+
+
+class Story(Base):
+    """
+    A cluster of articles covering the same event.
+
+    `centroid` is the average embedding of the story's articles, used to match
+    new articles against existing stories.
+    """
+
+    __tablename__ = "stories"
+
+    id = Column(Integer, primary_key=True)
+    title = Column(String(1024), nullable=False)
+    summary = Column(Text, nullable=True)
+    importance_score = Column(Float, nullable=True)
+    centroid = Column(Vector(384), nullable=True)
+    article_count = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+    story_articles = relationship("StoryArticle", back_populates="story")
+
+
+class StoryArticle(Base):
+    """Membership of an article in a story. An article belongs to at most one story."""
+
+    __tablename__ = "story_articles"
+
+    id = Column(Integer, primary_key=True)
+    story_id = Column(Integer, ForeignKey("stories.id"), nullable=False)
+    article_id = Column(Integer, ForeignKey("articles.id"), nullable=False)
+    similarity = Column(Float, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+
+    story = relationship("Story", back_populates="story_articles")
+    article = relationship("Article")
+
+    __table_args__ = (
+        UniqueConstraint("article_id", name="uq_story_articles_article_id"),
+        Index("ix_story_articles_story_id", "story_id"),
     )
