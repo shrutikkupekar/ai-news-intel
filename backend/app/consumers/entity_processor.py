@@ -11,6 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from app.clustering import assign_to_story
 from app.database import SessionLocal
 from app.models import Article, ArticleEntity, Entity
+from app.topics import classify_article_topic
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("entity_processor")
@@ -18,92 +19,6 @@ logger = logging.getLogger("entity_processor")
 KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
 nlp = spacy.load("en_core_web_sm")
 embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
-
-TOPIC_TAXONOMY = {
-    "Artificial Intelligence": [
-        "ai",
-        "chatgpt",
-        "llm",
-        "machine learning",
-        "openai",
-        "anthropic",
-        "claude",
-    ],
-    "Robotics": [
-        "robot",
-        "robotics",
-        "automation",
-        "drone",
-        "humanoid",
-    ],
-    "Space": [
-        "nasa",
-        "spacex",
-        "satellite",
-        "rocket",
-        "orbit",
-        "astronaut",
-    ],
-    "Business & Finance": [
-        "funding",
-        "valuation",
-        "ipo",
-        "acquisition",
-        "investor",
-        "startup",
-    ],
-    "Policy & Regulation": [
-        "regulation",
-        "lawsuit",
-        "congress",
-        "senate",
-        "ftc",
-        "antitrust",
-    ],
-    "Gaming & Entertainment": [
-        "game",
-        "gaming",
-        "movie",
-        "streaming",
-        "netflix",
-    ],
-    "Cybersecurity": [
-        "hack",
-        "breach",
-        "vulnerability",
-        "malware",
-        "exploit",
-    ],
-}
-
-
-def classify_article_topic(text: str) -> str:
-    """
-    Classify article text into a topic based on keyword matching.
-    
-    Returns the topic name with the most matches, or "Uncategorized" if
-    there's a tie or zero matches.
-    """
-    text_lower = text.lower()
-    topic_scores = {}
-    
-    for topic, keywords in TOPIC_TAXONOMY.items():
-        score = sum(1 for keyword in keywords if keyword in text_lower)
-        topic_scores[topic] = score
-    
-    max_score = max(topic_scores.values())
-    if max_score == 0:
-        return "Uncategorized"
-    
-    # Count how many topics have the max score
-    topics_with_max = [t for t, s in topic_scores.items() if s == max_score]
-    
-    if len(topics_with_max) > 1:
-        # Tie: return "Uncategorized"
-        return "Uncategorized"
-    
-    return topics_with_max[0]
-
 
 HN_BOILERPLATE_PREFIXES = (
     "Article URL:",
