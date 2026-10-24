@@ -33,7 +33,6 @@ SEED_SOURCES = [
     {"name": "TechCrunch", "url": "https://techcrunch.com/feed/"},
     {"name": "Ars Technica", "url": "https://feeds.arstechnica.com/arstechnica/index"},
     {"name": "The Verge", "url": "https://www.theverge.com/rss/index.xml"},
-    {"name": "Reuters Technology", "url": "https://www.reutersagency.com/feed/?best-topics=tech"},
     {"name": "Hacker News (Front Page)", "url": "https://hnrss.org/frontpage"},
 ]
 
