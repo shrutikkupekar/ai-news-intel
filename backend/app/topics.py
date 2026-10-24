@@ -62,6 +62,30 @@ TOPIC_TAXONOMY = {
         "malware",
         "exploit",
     ],
+    # Phones, watches, wearables, audio and laptops. Brand names like "apple"
+    # or plain words like "watch" and "pixel" are left out because they mean
+    # too many other things.
+    "Consumer Tech": [
+        "iphone",
+        "ipad",
+        "android",
+        "google pixel",
+        "pixel watch",
+        "noise cancellation",
+        "smartphone",
+        "smartwatch",
+        "apple watch",
+        "airpods",
+        "earbud",
+        "headphone",
+        "wearable",
+        "laptop",
+        "macbook",
+        "chromebook",
+        "foldable",
+        "fitbit",
+        "smart glasses",
+    ],
 }
 
 # Every keyword also matches its plural ("drones", "breaches"). These add the
